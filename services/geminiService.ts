@@ -1,21 +1,16 @@
-// Fix: Import the 'Part' type from @google/genai
+
 import { GoogleGenAI, Modality, Part } from "@google/genai";
 import type { GenerateThumbnailParams, EditThumbnailParams } from '../types';
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
+const getClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const fileToGenerativePart = async (file: File) => {
+const fileToGenerativePart = async (file: File): Promise<Part> => {
   const base64EncodedDataPromise = new Promise<string>((resolve) => {
     const reader = new FileReader();
     reader.onloadend = () => {
         if (typeof reader.result === 'string') {
             resolve(reader.result.split(',')[1]);
         } else {
-            // This case should ideally not happen with readAsDataURL
             resolve('');
         }
     };
@@ -30,105 +25,93 @@ const fileToGenerativePart = async (file: File) => {
   };
 };
 
-const buildPrompt = (text: string, intensity: number, options: GenerateThumbnailParams['options']): string => {
+const buildPrompt = (text: string, intensity: number, options: GenerateThumbnailParams['options'], isPro: boolean): string => {
     const { aspectRatio, ...restOptions } = options;
-    const resolution = aspectRatio === '16:9' ? '1280x720' : '720x1280';
+    const resolution = aspectRatio === '16:9' ? (isPro ? '1920x1080' : '1280x720') : (isPro ? '1080x1920' : '720x1280');
 
     let intensityDescription = '';
     if (intensity <= 3) {
-        intensityDescription = "very similar to the original, with only minor tweaks.";
+        intensityDescription = "Iterative tweak: keep the soul of the original but sharpen the impact.";
     } else if (intensity <= 7) {
-        intensityDescription = "taking creative liberties, with noticeable changes to layout and background.";
+        intensityDescription = "Creative reimagining: move elements, swap textures, keep the theme.";
     } else {
-        intensityDescription = "completely reimagined, using the original only as loose inspiration.";
+        intensityDescription = "Total overhaul: use the concept as a loose baseline only.";
     }
 
     const requestedChanges = Object.entries(restOptions)
         .filter(([, value]) => value)
         .map(([key]) => {
             switch (key) {
-                case 'colorVariation': return '- Use a new, vibrant, and contrasting color palette.';
-                case 'fontChange': return '- Use a different, modern, and bold sans-serif font for the text.';
-                case 'layoutVariation': return '- Rearrange the main elements for a fresh composition.';
-                case 'backgroundChange': return '- Replace the background with something thematically similar but more dynamic.';
-                case 'elementReplacement': return '- Replace or add new graphical elements (emojis, arrows, icons).';
-                case 'textReplacement': return `- The primary title text should be '${text}'. Make it the main focus.`;
-                case 'faceChange': return '- Swap the face of the main person with the face from the SECOND image, ensuring an exact facial match.';
-                case 'personChange': return '- Replace the main person entirely with the person from the SECOND image, ensuring an exact facial match.';
+                case 'colorVariation': return '- Transform the color grade. Use high-contrast, trendy LUTs.';
+                case 'fontChange': return '- Modern typography swap. Use bold, 3D, or heavy-outline styles.';
+                case 'layoutVariation': return '- Drastic composition change. Rule of thirds optimization.';
+                case 'backgroundChange': return '- High-fidelity background swap. Maintain thematic logic.';
+                case 'elementReplacement': return '- Asset update: replace old icons/emojis with high-res 3D counterparts.';
+                case 'textReplacement': return `- Title override: '${text}'. Centerpiece of the design.`;
+                case 'faceChange': return '- EXACT Face Injection: The face from the SECOND image must replace the face in the FIRST image.';
+                case 'personChange': return '- Full Person Injection: The entity from the SECOND image replaces the subject in the FIRST image.';
                 default: return '';
             }
         })
         .join('\n');
-    
-    const faceSwapInstruction = options.faceChange
-        ? `\n\n**Critical Instruction: Face Swap with Exact Facial Match**
-You are given two images. The FIRST is the base thumbnail, the SECOND is an image of a face. Your most important task is to swap the face of the main person in the FIRST image with the face from the SECOND image. **It is absolutely crucial that the new face is an EXACT replica of the face from the SECOND image.** Do not alter its features, expression, or identity. Ensure the skin tone, lighting, and style match the thumbnail for a seamless blend.`
-        : '';
-    
-    const personSwapInstruction = options.personChange
-        ? `\n\n**Critical Instruction: Person Swap with Exact Facial Match**
-You are given two images. The FIRST is the base thumbnail, the SECOND contains a person. Your most important task is to completely replace the main person in the FIRST image with the person from the SECOND image. **It is absolutely crucial that the face of the new person in the thumbnail is an EXACT replica of the face from the SECOND image.** Do not alter their facial features, expression, or identity. The pose and clothing can be adapted to fit the new thumbnail's style, but the face MUST remain identical. The original person must not be visible.`
-        : '';
 
     return `
-You are an expert YouTube thumbnail designer AI. Your task is to recreate the provided thumbnail image with creative variations. Do not copy it directly. Create a new, unique, and compelling thumbnail to maximize click-through rate.
-${faceSwapInstruction}${personSwapInstruction}
+You are a top-tier YouTube Thumbnail Creative Director. Your goal is to maximize CTR (Click-Through Rate).
+Original Thumbnail is Provided (IMAGE 1). 
+${isPro ? "Use Google Search grounding to understand visual trends for '"+text+"' if relevant." : ""}
 
-**User's New Title Text:** "${text || 'Not provided'}"
-${options.textReplacement && text ? `This new text is the most important element.` : `If no new text is provided, analyze and enhance the existing text.`}
+${options.faceChange || options.personChange ? "**MANDATORY: Identity Integrity.** The face from the SECOND image must be reproduced with 100% accuracy. Do not stylize it beyond basic lighting matching." : ""}
 
-**Variation Intensity (1-10):** ${intensity} (${intensityDescription})
+**Directives:**
+- **Text:** "${text || 'Preserve/Enhance existing message'}"
+- **Creative Intensity:** ${intensity}/10 (${intensityDescription})
+- **Requested Modifications:**
+${requestedChanges || "- Use professional judgement for a high-impact clone."}
 
-**Specific Changes Requested:**
-${requestedChanges || "- No specific changes requested, use your creative judgement based on the intensity level."}
-
-**Output Requirements:**
-- **CRITICAL:** The final image MUST be in a ${aspectRatio} aspect ratio (e.g., ${resolution}). This is the most important rule.
-- The style must be modern, high-quality, and professional.
-- The title text must be extremely legible and prominent.
-- The output MUST be only the image. Do not add any text description in your response.
-    `;
+**Output Spec:**
+- ASPECT RATIO: ${aspectRatio}
+- QUALITY: ${isPro ? "Ultra-High 2K Resolution" : "HD Quality"}
+- No text response, only the resulting image.
+`;
 };
 
-export const generateThumbnail = async ({ image, text, intensity, options, faceImage, personImage }: GenerateThumbnailParams): Promise<string> => {
-    const prompt = buildPrompt(text, intensity, options);
+export const generateThumbnail = async ({ image, text, intensity, options, faceImage, personImage, isPro }: GenerateThumbnailParams & { isPro?: boolean }): Promise<string> => {
+    const ai = getClient();
+    const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+    const prompt = buildPrompt(text, intensity, options, !!isPro);
     
     const imagePart = await fileToGenerativePart(image);
-    // Fix: Explicitly type `parts` as an array of `Part` to allow both image and text parts.
     const parts: Part[] = [imagePart];
 
-    // The order is important here. The prompt refers to the main thumbnail as the "FIRST" image
-    // and the face/person image as the "SECOND" image.
     if (faceImage && options.faceChange) {
-        const faceImagePart = await fileToGenerativePart(faceImage);
-        parts.push(faceImagePart);
+        parts.push(await fileToGenerativePart(faceImage));
     } else if (personImage && options.personChange) {
-        const personImagePart = await fileToGenerativePart(personImage);
-        parts.push(personImagePart);
+        parts.push(await fileToGenerativePart(personImage));
     }
     
     parts.push({ text: prompt });
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-            parts: parts,
-        },
+        model: modelName,
+        contents: { parts },
         config: {
             responseModalities: [Modality.IMAGE],
+            ...(isPro ? { 
+                imageConfig: { aspectRatio: options.aspectRatio, imageSize: "2K" },
+                tools: [{ googleSearch: {} }] 
+            } : {})
         },
     });
 
-    for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-            return part.inlineData.data;
-        }
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) return part.inlineData.data;
     }
 
-    throw new Error('No image was generated by the API.');
+    throw new Error('Creative synthesis failed to yield an image.');
 };
 
 export const editThumbnail = async ({ imageBase64, prompt }: EditThumbnailParams): Promise<string> => {
+    const ai = getClient();
     const imagePart = {
         inlineData: {
             data: imageBase64.split(',')[1],
@@ -136,16 +119,7 @@ export const editThumbnail = async ({ imageBase64, prompt }: EditThumbnailParams
         },
     };
 
-    const editPrompt = `
-You are an expert image editor AI. Your task is to edit the provided image based on the user's instructions.
-Apply the following changes precisely:
-"${prompt}"
-
-**Output Requirements:**
-- **CRITICAL:** The final image MUST maintain the original aspect ratio of the provided image. This is the most important rule.
-- The style must be consistent with the original image unless instructed otherwise.
-- The output MUST be only the image. Do not add any text description in your response.
-    `;
+    const editPrompt = `Refine this thumbnail based on user feedback: "${prompt}". Maintain existing visual style. Output image only.`;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -157,11 +131,9 @@ Apply the following changes precisely:
         },
     });
 
-    for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-            return part.inlineData.data;
-        }
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) return part.inlineData.data;
     }
 
-    throw new Error('No image was returned after editing.');
+    throw new Error('Image refinement failed.');
 };

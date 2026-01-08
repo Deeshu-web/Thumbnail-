@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
@@ -6,7 +7,7 @@ import { ThumbnailDisplay } from './components/ThumbnailDisplay';
 import { Loader } from './components/Loader';
 import { generateThumbnail, editThumbnail } from './services/geminiService';
 import type { VariationOptions } from './types';
-import { DownloadIcon, EditIcon } from './components/Icons';
+import { DownloadIcon, EditIcon, SparklesIcon } from './components/Icons';
 import { EditPanel } from './components/EditPanel';
 
 const App: React.FC = () => {
@@ -19,6 +20,9 @@ const App: React.FC = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [variationIntensity, setVariationIntensity] = useState<number>(5);
   const [newText, setNewText] = useState<string>('');
+  const [isProMode, setIsProMode] = useState<boolean>(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  
   const [variationOptions, setVariationOptions] = useState<VariationOptions>({
     colorVariation: true,
     fontChange: true,
@@ -30,11 +34,29 @@ const App: React.FC = () => {
     personChange: false,
     aspectRatio: '16:9',
   });
+  
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editPrompt, setEditPrompt] = useState<string>('');
-  const [loaderMessage, setLoaderMessage] = useState<string>('Generating your thumbnail...');
+  const [loaderMessage, setLoaderMessage] = useState<string>('Initializing AI engine...');
+
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio?.hasSelectedApiKey) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(hasKey);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio?.openSelectKey) {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true);
+    }
+  };
 
   const handleFileSelect = (file: File | null) => {
     if (file) {
@@ -54,9 +76,7 @@ const App: React.FC = () => {
     if (file) {
         setFaceImage(file);
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setFaceImageUrl(reader.result as string);
-        };
+        reader.onloadend = () => setFaceImageUrl(reader.result as string);
         reader.readAsDataURL(file);
     }
   };
@@ -65,9 +85,7 @@ const App: React.FC = () => {
     if (file) {
         setPersonImage(file);
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setPersonImageUrl(reader.result as string);
-        };
+        reader.onloadend = () => setPersonImageUrl(reader.result as string);
         reader.readAsDataURL(file);
     }
   };
@@ -86,8 +104,12 @@ const App: React.FC = () => {
       return;
     }
 
+    if (isProMode && !hasApiKey) {
+      await handleSelectKey();
+    }
+
     setIsLoading(true);
-    setLoaderMessage('Generating your thumbnail...');
+    setLoaderMessage(isProMode ? 'Synthesizing Ultra HD Elements...' : 'Generating your thumbnail...');
     setError(null);
     setGeneratedImage(null);
     setIsEditing(false);
@@ -100,15 +122,21 @@ const App: React.FC = () => {
         options: variationOptions,
         faceImage: faceImage,
         personImage: personImage,
+        isPro: isProMode,
       });
       setGeneratedImage(`data:image/png;base64,${generatedBase64}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Sorry, the AI failed to generate the thumbnail. This can happen with complex requests. Please try adjusting the options or using a different image.');
+      if (err.message?.includes('Requested entity was not found')) {
+        setHasApiKey(false);
+        setError('API Key error. Please re-select your key.');
+      } else {
+        setError('AI Generation Failed. Try reducing complexity or adjusting intensity.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [originalImage, newText, variationIntensity, variationOptions, faceImage, personImage]);
+  }, [originalImage, newText, variationIntensity, variationOptions, faceImage, personImage, isProMode, hasApiKey]);
 
   const handleApplyEdits = useCallback(async () => {
     if (!editPrompt || !generatedImage) {
@@ -116,7 +144,7 @@ const App: React.FC = () => {
         return;
     }
     setIsLoading(true);
-    setLoaderMessage('Applying edits...');
+    setLoaderMessage('Refining masterpiece...');
     setError(null);
 
     try {
@@ -127,7 +155,7 @@ const App: React.FC = () => {
         setGeneratedImage(`data:image/png;base64,${editedBase64}`);
     } catch (err) {
         console.error(err);
-        setError('Sorry, the AI failed to apply the edits. Please try a different instruction.');
+        setError('Editing failed. The instruction might be too complex for this context.');
     } finally {
         setIsLoading(false);
     }
@@ -137,19 +165,23 @@ const App: React.FC = () => {
     if (!generatedImage) return;
     const link = document.createElement('a');
     link.href = generatedImage;
-    link.download = 'generated-thumbnail.png';
+    link.download = `thumbnail-${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-gray-200 font-sans p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans selection:bg-cyan-500/30">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,_#1e1b4b_0%,_transparent_50%)] pointer-events-none opacity-50" />
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Header />
-        <main className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <main className="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-4 space-y-6">
             <FileUpload onFileSelect={handleFileSelect} imageUrl={originalImageUrl} />
+            
             <Controls
               intensity={variationIntensity}
               onIntensityChange={setVariationIntensity}
@@ -163,51 +195,75 @@ const App: React.FC = () => {
               onFaceSelect={handleFaceSelect}
               personImageUrl={personImageUrl}
               onPersonSelect={handlePersonSelect}
+              isPro={isProMode}
+              onProToggle={setIsProMode}
+              hasKey={hasApiKey}
+              onSelectKey={handleSelectKey}
             />
           </div>
+          
           <div className="lg:col-span-8">
-            <div className="bg-slate-800/50 rounded-lg p-6 shadow-lg h-full flex flex-col">
-              <h2 className="text-xl font-bold mb-4 text-cyan-400">Generated Thumbnail</h2>
-              <div className="relative aspect-video bg-slate-700 rounded-md flex items-center justify-center">
+            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[calc(100vh-12rem)] min-h-[500px]">
+              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Preview Engine</h2>
+                {generatedImage && (
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 text-[10px] font-bold">READY</span>
+                )}
+              </div>
+              
+              <div className="relative flex-1 bg-slate-950 flex items-center justify-center p-4">
                 {isLoading && <Loader message={loaderMessage} />}
-                {error && !isLoading && <p className="text-red-400 text-center p-4">{error}</p>}
+                {error && !isLoading && (
+                  <div className="max-w-md text-center">
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-6 rounded-xl animate-in fade-in zoom-in duration-300">
+                        <p className="font-semibold">{error}</p>
+                    </div>
+                  </div>
+                )}
                 {!isLoading && !generatedImage && !error && (
-                  <div className="text-center text-slate-400">
-                    <p>Your generated thumbnail will appear here.</p>
-                    <p className="text-sm">Upload an image and click "Generate".</p>
+                  <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="w-20 h-20 mx-auto bg-slate-900 rounded-3xl flex items-center justify-center border border-slate-800 shadow-inner">
+                      <SparklesIcon className="w-10 h-10 text-slate-700" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-medium text-slate-500">Awaiting visual instructions</p>
+                      <p className="text-sm text-slate-600">Upload your base thumbnail to begin cloning</p>
+                    </div>
                   </div>
                 )}
                 {generatedImage && (
-                  <>
+                  <div className="w-full h-full animate-in zoom-in duration-500">
                     <ThumbnailDisplay imageUrl={generatedImage} />
-                    <div className="absolute bottom-4 right-4 flex items-center gap-3">
+                    <div className="absolute bottom-6 right-6 flex items-center gap-3">
                       <button
                         onClick={() => setIsEditing(!isEditing)}
-                        className={`bg-indigo-500 text-white font-bold py-2 px-4 rounded-full hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-lg ${isEditing ? 'ring-2 ring-offset-2 ring-offset-slate-800 ring-indigo-400' : ''}`}
-                        aria-pressed={isEditing}
+                        className={`bg-indigo-600/90 backdrop-blur hover:bg-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-xl group ${isEditing ? 'ring-2 ring-indigo-400' : ''}`}
                       >
-                        <EditIcon />
-                        Edit
+                        <EditIcon className="group-hover:scale-110 transition-transform" />
+                        Refine
                       </button>
                       <button
                         onClick={handleDownload}
-                        className="bg-cyan-500 text-white font-bold py-2 px-4 rounded-full hover:bg-cyan-600 transition-colors flex items-center gap-2 shadow-lg"
+                        className="bg-cyan-600/90 backdrop-blur hover:bg-cyan-500 text-white font-bold py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-xl group"
                       >
-                        <DownloadIcon />
-                        Download
+                        <DownloadIcon className="group-hover:translate-y-0.5 transition-transform" />
+                        Export
                       </button>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
+              
               {isEditing && generatedImage && (
-                <EditPanel 
-                    prompt={editPrompt}
-                    onPromptChange={setEditPrompt}
-                    onApply={handleApplyEdits}
-                    onCancel={() => setIsEditing(false)}
-                    isApplying={isLoading}
-                />
+                <div className="p-6 bg-slate-900/80 border-t border-slate-800 animate-in slide-in-from-bottom-full duration-300">
+                  <EditPanel 
+                      prompt={editPrompt}
+                      onPromptChange={setEditPrompt}
+                      onApply={handleApplyEdits}
+                      onCancel={() => setIsEditing(false)}
+                      isApplying={isLoading}
+                  />
+                </div>
               )}
             </div>
           </div>

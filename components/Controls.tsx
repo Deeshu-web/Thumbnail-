@@ -1,6 +1,7 @@
+
 import React from 'react';
 import type { VariationOptions } from '../types';
-import { SparklesIcon, UserIcon } from './Icons';
+import { SparklesIcon, UserIcon, KeyIcon, ZapIcon } from './Icons';
 
 interface ControlsProps {
   intensity: number;
@@ -15,17 +16,21 @@ interface ControlsProps {
   onFaceSelect: (file: File | null) => void;
   personImageUrl: string | null;
   onPersonSelect: (file: File | null) => void;
+  isPro: boolean;
+  onProToggle: (val: boolean) => void;
+  hasKey: boolean;
+  onSelectKey: () => void;
 }
 
 const variationOptionLabels: Omit<Record<keyof VariationOptions, string>, 'aspectRatio'> = {
-  colorVariation: 'Color Palette',
-  fontChange: 'Font Style',
-  layoutVariation: 'Layout & Composition',
-  backgroundChange: 'Background',
-  elementReplacement: 'Graphical Elements',
-  textReplacement: 'Replace Text',
-  faceChange: 'Face Change',
-  personChange: 'Person Change',
+  colorVariation: 'Vibrant Colors',
+  fontChange: '3D Typography',
+  layoutVariation: 'Composition',
+  backgroundChange: 'Dynamic BG',
+  elementReplacement: 'AI Assets',
+  textReplacement: 'Override Text',
+  faceChange: 'Inject Face',
+  personChange: 'Swap Person',
 };
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -40,158 +45,143 @@ export const Controls: React.FC<ControlsProps> = ({
   faceImageUrl,
   onFaceSelect,
   personImageUrl,
-  onPersonSelect
+  onPersonSelect,
+  isPro,
+  onProToggle,
+  hasKey,
+  onSelectKey
 }) => {
   const handleCheckboxChange = (optionKey: keyof typeof variationOptionLabels) => {
-    const newOptions = {
-      ...options,
-      [optionKey]: !options[optionKey],
-    };
-    // Enforce mutual exclusivity
-    if (optionKey === 'faceChange' && newOptions.faceChange) {
-      newOptions.personChange = false;
-    }
-    if (optionKey === 'personChange' && newOptions.personChange) {
-      newOptions.faceChange = false;
-    }
+    const newOptions = { ...options, [optionKey]: !options[optionKey] };
+    if (optionKey === 'faceChange' && newOptions.faceChange) newOptions.personChange = false;
+    if (optionKey === 'personChange' && newOptions.personChange) newOptions.faceChange = false;
     onOptionChange(newOptions);
   };
 
-  const handleFaceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onFaceSelect(e.target.files[0]);
-    }
-  };
-
-  const handlePersonFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onPersonSelect(e.target.files[0]);
-    }
-  };
-
   return (
-    <div className="bg-slate-800/50 rounded-lg p-6 shadow-lg space-y-6">
-      <div>
-        <h2 className="text-xl font-bold mb-4 text-cyan-400">2. Customize Variation</h2>
+    <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 p-3">
+        <button 
+          onClick={() => onProToggle(!isPro)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isPro ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'bg-slate-800 text-slate-400'}`}
+        >
+          <ZapIcon className="w-3 h-3" />
+          {isPro ? 'Pro Mode' : 'Standard'}
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-[0.2em] text-cyan-400">Parameter Studio</h2>
         
-        <label htmlFor="intensity" className="block text-sm font-medium text-slate-300">Variation Intensity: <span className="font-bold text-cyan-400">{intensity}</span></label>
-        <input
-          id="intensity"
-          type="range"
-          min="1"
-          max="10"
-          value={intensity}
-          onChange={(e) => onIntensityChange(Number(e.target.value))}
-          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer mt-2"
-          style={{
-            background: `linear-gradient(to right, #22d3ee 0%, #22d3ee ${intensity * 10}%, #475569 ${intensity * 10}%, #475569 100%)`
-          }}
-        />
-        <div className="flex justify-between text-xs text-slate-400 mt-1">
-          <span>Similar</span>
-          <span>Reimagined</span>
-        </div>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2">Aspect Ratio</label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onOptionChange({ ...options, aspectRatio: '16:9' })}
-            className={`w-full py-2 px-4 rounded-md text-sm font-semibold transition-colors ${
-              options.aspectRatio === '16:9'
-                ? 'bg-cyan-500 text-white shadow-md'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            16:9 (Landscape)
-          </button>
-          <button
-            onClick={() => onOptionChange({ ...options, aspectRatio: '9:16' })}
-            className={`w-full py-2 px-4 rounded-md text-sm font-semibold transition-colors ${
-              options.aspectRatio === '9:16'
-                ? 'bg-cyan-500 text-white shadow-md'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            9:16 (Portrait)
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-4">
-        <div className="md:col-span-2">
-            <label htmlFor="newText" className="block text-sm font-medium text-slate-300">New Thumbnail Text</label>
-            <input
-            id="newText"
-            type="text"
-            value={text}
-            onChange={(e) => onTextChange(e.target.value)}
-            placeholder="e.g., EPIC NEW VIDEO!"
-            className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white placeholder-slate-400 focus:outline-none focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm"
-            />
-        </div>
         <div>
-            <label htmlFor="face-upload" className="block text-sm font-medium text-slate-300">Upload Face Image</label>
-            <div className="mt-1 flex items-center gap-2">
-                <div className="w-16 h-10 bg-slate-700 rounded-md flex items-center justify-center overflow-hidden">
-                    {faceImageUrl ? (
-                        <img src={faceImageUrl} alt="Face Preview" className="h-full w-full object-cover" />
-                    ) : (
-                       <UserIcon />
-                    )}
-                </div>
-                <label htmlFor="face-upload" className="relative cursor-pointer bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-2 px-3 border border-slate-600 rounded-md shadow-sm text-sm w-full text-center">
-                    <span>Select Face</span>
-                    <input id="face-upload" name="face-upload" type="file" className="sr-only" onChange={handleFaceFileChange} accept="image/png, image/jpeg, image/webp" />
-                </label>
-            </div>
+          <div className="flex justify-between items-end mb-2">
+            <label className="text-xs font-bold text-slate-400">VARIATION INTENSITY</label>
+            <span className="text-xl font-black text-cyan-400 leading-none">{intensity}</span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            value={intensity}
+            onChange={(e) => onIntensityChange(Number(e.target.value))}
+            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+          />
         </div>
-        <div>
-            <label htmlFor="person-upload" className="block text-sm font-medium text-slate-300">Upload Person Image</label>
-            <div className="mt-1 flex items-center gap-2">
-                <div className="w-16 h-10 bg-slate-700 rounded-md flex items-center justify-center overflow-hidden">
-                    {personImageUrl ? (
-                        <img src={personImageUrl} alt="Person Preview" className="h-full w-full object-cover" />
-                    ) : (
-                       <UserIcon />
-                    )}
-                </div>
-                <label htmlFor="person-upload" className="relative cursor-pointer bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-2 px-3 border border-slate-600 rounded-md shadow-sm text-sm w-full text-center">
-                    <span>Select Person</span>
-                    <input id="person-upload" name="person-upload" type="file" className="sr-only" onChange={handlePersonFileChange} accept="image/png, image/jpeg, image/webp" />
-                </label>
-            </div>
-        </div>
-      </div>
 
-      <div>
-        <h3 className="text-sm font-medium text-slate-300 mb-2">Variation Options</h3>
         <div className="grid grid-cols-2 gap-2">
-          {(Object.keys(variationOptionLabels) as Array<keyof typeof variationOptionLabels>).map((key) => (
-            <div key={key} className="flex items-center">
-              <input
-                id={key}
-                type="checkbox"
-                checked={options[key]}
-                onChange={() => handleCheckboxChange(key)}
-                className="h-4 w-4 rounded border-slate-500 text-cyan-500 bg-slate-700 focus:ring-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={(key === 'faceChange' && options.personChange) || (key === 'personChange' && options.faceChange)}
-              />
-              <label htmlFor={key} className={`ml-2 block text-sm text-slate-300 ${( (key === 'faceChange' && options.personChange) || (key === 'personChange' && options.faceChange) ) ? 'opacity-50' : ''}`}>{variationOptionLabels[key]}</label>
-            </div>
+          {['16:9', '9:16'].map((ratio) => (
+            <button
+              key={ratio}
+              onClick={() => onOptionChange({ ...options, aspectRatio: ratio as any })}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                options.aspectRatio === ratio
+                  ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
+                  : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'
+              }`}
+            >
+              {ratio} {ratio === '16:9' ? 'Landscape' : 'Shorts'}
+            </button>
           ))}
         </div>
       </div>
-      
-      <button
-        onClick={onGenerate}
-        disabled={isDisabled}
-        className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center gap-2 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none"
-      >
-        <SparklesIcon />
-        Generate
-      </button>
+
+      <div className="space-y-4">
+        <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Target Headline</label>
+            <input
+                type="text"
+                value={text}
+                onChange={(e) => onTextChange(e.target.value)}
+                placeholder="EPIC CLONE EXPERIMENT"
+                className="w-full bg-slate-950/50 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all"
+            />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+            {[
+                { id: 'face', img: faceImageUrl, handler: onFaceSelect, label: 'Identity Source' },
+                { id: 'person', img: personImageUrl, handler: onPersonSelect, label: 'Body Source' }
+            ].map(item => (
+                <div key={item.id} className="relative group">
+                    <label className="text-[10px] font-black text-slate-600 uppercase mb-1 block">{item.label}</label>
+                    <div className="aspect-square bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer hover:border-slate-700 transition-colors">
+                        {item.img ? (
+                            <img src={item.img} className="w-full h-full object-cover" />
+                        ) : (
+                            <UserIcon className="w-6 h-6 text-slate-800" />
+                        )}
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => item.handler(e.target.files?.[0] || null)} />
+                    </div>
+                </div>
+            ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Augmentations</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {(Object.keys(variationOptionLabels) as Array<keyof typeof variationOptionLabels>).map((key) => (
+            <button
+                key={key}
+                disabled={(key === 'faceChange' && options.personChange) || (key === 'personChange' && options.faceChange)}
+                onClick={() => handleCheckboxChange(key)}
+                className={`text-[10px] font-bold py-2 px-2 rounded-lg text-left transition-all border flex items-center justify-between ${
+                    options[key] 
+                        ? 'bg-cyan-500/5 border-cyan-500/30 text-cyan-300' 
+                        : 'bg-slate-950/30 border-slate-800/50 text-slate-600 opacity-60'
+                }`}
+            >
+                {variationOptionLabels[key]}
+                <div className={`w-1.5 h-1.5 rounded-full ${options[key] ? 'bg-cyan-400' : 'bg-slate-800'}`} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="pt-2 flex flex-col gap-3">
+        {isPro && !hasKey && (
+          <button
+            onClick={onSelectKey}
+            className="w-full bg-amber-500/10 border border-amber-500/30 text-amber-500 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-amber-500/20 transition-all text-xs"
+          >
+            <KeyIcon className="w-4 h-4" />
+            Connect Billing Project
+          </button>
+        )}
+        
+        <button
+          onClick={onGenerate}
+          disabled={isDisabled}
+          className={`w-full font-black py-4 px-4 rounded-xl flex items-center justify-center gap-3 transition-all transform active:scale-95 ${
+            isPro 
+                ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-lg shadow-orange-900/20' 
+                : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-blue-900/20'
+          } disabled:opacity-30 disabled:grayscale disabled:transform-none`}
+        >
+          {isPro ? <ZapIcon className="animate-pulse" /> : <SparklesIcon />}
+          {isPro ? 'SYNTHESIZE PRO' : 'GENERATE CLONE'}
+        </button>
+      </div>
     </div>
   );
 };
