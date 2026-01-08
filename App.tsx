@@ -44,8 +44,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio?.hasSelectedApiKey) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
+        try {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } catch (e) {
+          console.error("Error checking API key status", e);
+        }
       }
     };
     checkKey();
@@ -126,12 +130,18 @@ const App: React.FC = () => {
       });
       setGeneratedImage(`data:image/png;base64,${generatedBase64}`);
     } catch (err: any) {
-      console.error(err);
-      if (err.message?.includes('Requested entity was not found')) {
+      console.error("Generation Error Details:", err);
+      const msg = err.message || '';
+      
+      if (msg.includes('Requested entity was not found')) {
         setHasApiKey(false);
-        setError('API Key error. Please re-select your key.');
+        setError('Model access restricted. Please select a valid API Key from a paid GCP project via the Pro Mode setup.');
+      } else if (msg.includes('rate limit') || msg.includes('429')) {
+        setError('Rate limit exceeded. The server is busy, please try again in 30 seconds.');
+      } else if (msg.includes('API_KEY') || msg.includes('invalid api key')) {
+        setError('API Key configuration issue. Ensure the "API_KEY" environment variable is correctly set in your Vercel Dashboard.');
       } else {
-        setError('AI Generation Failed. Try reducing complexity or adjusting intensity.');
+        setError(`AI Generation Failed: ${msg.slice(0, 150) || 'An unknown error occurred. Please check your internet connection and try again.'}`);
       }
     } finally {
       setIsLoading(false);
@@ -153,9 +163,9 @@ const App: React.FC = () => {
             prompt: editPrompt,
         });
         setGeneratedImage(`data:image/png;base64,${editedBase64}`);
-    } catch (err) {
-        console.error(err);
-        setError('Editing failed. The instruction might be too complex for this context.');
+    } catch (err: any) {
+        console.error("Refinement Error:", err);
+        setError(`Refinement failed: ${err.message || 'The instruction might be too complex for the current image context.'}`);
     } finally {
         setIsLoading(false);
     }
