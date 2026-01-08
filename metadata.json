@@ -1,0 +1,5 @@
+{
+  "name": "Thumbnail Clone & Enhance",
+  "description": "An AI-powered app that takes an existing YouTube thumbnail and generates a new, unique version inspired by the original design, allowing for variations in color, font, layout, and style.",
+  "requestFramePermissions": []
+}
